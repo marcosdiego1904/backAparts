@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    /* Language and Environment Options */
+    "target": "es2016", // Or a newer version like "es2020" or "esnext" depending on your Node.js version capability
+    "module": "commonjs", // Essential for Node.js backend with ts-node
+    "esModuleInterop": true, // Recommended for easier importing of CommonJS modules
+    "forceConsistentCasingInFileNames": true, // Good practice
+
+    /* Type Checking Options */
+    "strict": true, // Enables a set of strict type-checking options - highly recommended
+
+    /* Module Resolution Options */
+    "moduleResolution": "node", // Essential for Node.js
+
+    /* Advanced Options */
+    "skipLibCheck": true // Skip type checking of declaration files - can speed up builds
+  },
+  "include": ["src/**/*.ts"], // Tell TypeScript to include all .ts files in the src directory
+  "exclude": ["node_modules", "dist"] // Tell TypeScript to ignore node_modules and the output dist folder
+}
