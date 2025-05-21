@@ -13,28 +13,28 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 // src/server.ts
-const express_1 = __importDefault(require("express")); // Mantén tus importaciones existentes
+const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const db_1 = __importDefault(require("../src/config/db"));
-// CAMBIA ESTA LÍNEA:
-// import itemRoutes from './routes/itemRoutes'; // Línea antigua
-const unitRoutes_1 = __importDefault(require("./routes/unitRoutes")); // Nueva línea - importando las rutas de unidades
+const unitRoutes_1 = __importDefault(require("./routes/unitRoutes"));
+const userRoutes_1 = __importDefault(require("./routes/userRoutes")); // NUEVA LÍNEA: Importar las rutas de usuarios
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const port = process.env.PORT || 3001;
-// Middleware "espía" global (opcional, pero útil para depurar)
+// Middleware "espía" global (CORREGIDO y colocado al principio)
 app.use((req, res, next) => {
     console.log(`PETICIÓN RECIBIDA: Método: ${req.method}, URL: ${req.originalUrl}`);
-    if (Object.keys(req.body).length > 0) {
-        console.log('Body:', req.body);
+    if (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0) {
+        console.log('Body (después de middlewares de parseo si este espía se mueve después):', req.body);
     }
     next();
 });
+// Middlewares principales
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
-// Ruta de prueba para la conexión a la BD (puedes mantenerla)
+// Ruta de prueba para la conexión a la BD
 app.get('/test-db', (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const [rows] = yield db_1.default.query('SELECT 1 + 1 AS solution');
@@ -46,13 +46,14 @@ app.get('/test-db', (_req, res) => __awaiter(void 0, void 0, void 0, function* (
         res.status(500).json({ success: false, message: 'Error al conectar a la BD', error: error.message });
     }
 }));
-// CAMBIA ESTA LÍNEA para usar las rutas de unidades y el prefijo /api/units:
-// app.use('/api/items', itemRoutes); // Línea antigua
-app.use('/api/units', unitRoutes_1.default); // Nueva línea - usando el prefijo /api/units
-// Ruta de bienvenida (puedes mantenerla)
+// Rutas de la API
+app.use('/api/units', unitRoutes_1.default); // Rutas para las unidades
+app.use('/api/users', userRoutes_1.default); // NUEVA LÍNEA: Rutas para los usuarios
+// Ruta de bienvenida
 app.get('/', (_req, res) => {
     res.send('¡Bienvenido a mi API de Apartamentos!');
 });
+// Iniciar el servidor
 app.listen(port, () => {
     console.log(`Servidor backend corriendo en http://localhost:${port}`);
 });

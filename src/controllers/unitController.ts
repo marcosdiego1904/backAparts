@@ -29,7 +29,16 @@ type CreateUnitRequestBody = {
     number_of_bathrooms?: string | number;
     is_occupied?: boolean;
 };
-
+// Tipo para el cuerpo de la solicitud al crear o actualizar una Unidad
+type CreateUnitPayload = {
+    unit_number: string;
+    building?: string;
+    floor?: number;
+    square_footage?: string | number;
+    number_of_bedrooms?: number;
+    number_of_bathrooms?: string | number;
+    is_occupied?: boolean;
+};
 // Tipo para los parámetros de ruta (ej: /units/:id)
 interface GetUnitByIdParams {
     id: string;
@@ -136,5 +145,152 @@ export const createUnit: RequestHandler = async (req, res) => {
         }
     }
 };
+// Add these functions to your src/controllers/unitController.ts file
 
+// Update an existing unit
+export const updateUnit: RequestHandler<GetUnitByIdParams> = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const numericId = parseInt(id, 10);
+
+        if (isNaN(numericId)) {
+            res.status(400).json({ message: 'El ID de la unidad debe ser un número.' });
+            return;
+        }
+
+        // Check if unit exists
+        const [existingUnit] = await pool.query<Unit[]>('SELECT * FROM units WHERE id = ?', [numericId]);
+        
+        if (existingUnit.length === 0) {
+            res.status(404).json({ message: 'Unidad no encontrada' });
+            return;
+        }
+
+        const {
+            unit_number,
+            building,
+            floor,
+            square_footage,
+            number_of_bedrooms,
+            number_of_bathrooms,
+            is_occupied
+        } = req.body as Partial<CreateUnitPayload>;
+
+        // Validate unit_number if provided
+        if (unit_number !== undefined && !unit_number.trim()) {
+            res.status(400).json({ message: 'El campo "unit_number" no puede estar vacío' });
+            return;
+        }
+
+        // Prepare the SQL query
+        let updateFields = [];
+        let queryParams = [];
+
+        if (unit_number !== undefined) {
+            updateFields.push('unit_number = ?');
+            queryParams.push(unit_number);
+        }
+        if (building !== undefined) {
+            updateFields.push('building = ?');
+            queryParams.push(building || null);
+        }
+        if (floor !== undefined) {
+            updateFields.push('floor = ?');
+            queryParams.push(floor || null);
+        }
+        if (square_footage !== undefined) {
+            updateFields.push('square_footage = ?');
+            queryParams.push(square_footage || null);
+        }
+        if (number_of_bedrooms !== undefined) {
+            updateFields.push('number_of_bedrooms = ?');
+            queryParams.push(number_of_bedrooms || null);
+        }
+        if (number_of_bathrooms !== undefined) {
+            updateFields.push('number_of_bathrooms = ?');
+            queryParams.push(number_of_bathrooms || null);
+        }
+        if (is_occupied !== undefined) {
+            updateFields.push('is_occupied = ?');
+            queryParams.push(is_occupied);
+        }
+
+        // Add updated_at timestamp
+        updateFields.push('updated_at = NOW()');
+
+        // If there are no fields to update, return the existing unit
+        if (updateFields.length === 0) {
+            const unit = {
+                ...existingUnit[0],
+                is_occupied: Boolean(existingUnit[0].is_occupied),
+            };
+            res.status(200).json(unit);
+            return;
+        }
+
+        // Add ID to params
+        queryParams.push(numericId);
+
+        // Execute update query
+        const sql = `UPDATE units SET ${updateFields.join(', ')} WHERE id = ?`;
+        await pool.query(sql, queryParams);
+
+        // Get the updated unit
+        const [updatedUnit] = await pool.query<Unit[]>('SELECT * FROM units WHERE id = ?', [numericId]);
+        
+        const unit = {
+            ...updatedUnit[0],
+            is_occupied: Boolean(updatedUnit[0].is_occupied),
+        };
+        
+        res.status(200).json(unit);
+    } catch (error) {
+        console.error('Error al actualizar unidad:', error);
+        
+        // Handle duplicate entry error
+        if ((error as any).code === 'ER_DUP_ENTRY') {
+            res.status(409).json({ message: 'Error: Ya existe una unidad con ese número.', error: (error as Error).message });
+        } else {
+            res.status(500).json({ message: 'Error interno del servidor', error: (error as Error).message });
+        }
+    }
+};
+
+// Delete a unit
+export const deleteUnit: RequestHandler<GetUnitByIdParams> = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const numericId = parseInt(id, 10);
+
+        if (isNaN(numericId)) {
+            res.status(400).json({ message: 'El ID de la unidad debe ser un número.' });
+            return;
+        }
+
+        // Check if unit exists
+        const [existingUnit] = await pool.query<Unit[]>('SELECT * FROM units WHERE id = ?', [numericId]);
+        
+        if (existingUnit.length === 0) {
+            res.status(404).json({ message: 'Unidad no encontrada' });
+            return;
+        }
+
+        // Check if the unit has associated users or other entities (if needed)
+        // This is important to maintain data integrity
+        const [associatedUsers] = await pool.query<RowDataPacket[]>('SELECT COUNT(*) as count FROM users WHERE unit_id = ?', [numericId]);
+        
+        if (associatedUsers[0].count > 0) {
+            res.status(400).json({ message: 'No se puede eliminar la unidad porque tiene usuarios asociados.' });
+            return;
+        }
+
+        // Delete the unit
+        await pool.query('DELETE FROM units WHERE id = ?', [numericId]);
+        
+        res.status(200).json({ message: 'Unidad eliminada exitosamente' });
+    } catch (error) {
+        console.error('Error al eliminar unidad:', error);
+        res.status(500).json({ message: 'Error interno del servidor', error: (error as Error).message });
+    }
+};
 // Aquí puedes añadir funciones para actualizar (updateUnit) y eliminar (deleteUnit) unidades en el futuro.
