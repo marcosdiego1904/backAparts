@@ -2,11 +2,10 @@
   "name": "mi-proyecto",
   "version": "1.0.0",
   "scripts": {
-    "start": "node dist/server.js", 
+    "start": "node dist/server.js",
     "build": "tsc",
-    "dev": "nodemon src/server.ts", 
-    "db:seed": "ts-node ./scripts/seed.ts" 
-   
+    "dev": "nodemon src/server.ts",
+    "db:seed": "ts-node ./scripts/seed.ts"
   },
   "keywords": [],
   "author": "",

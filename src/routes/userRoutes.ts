@@ -1,11 +1,12 @@
-// src/routes/userRoutes.ts
+// src/routes/userRoutes.ts - VERSIÓN COMPLETA
 import { Router } from 'express';
 import {
     getAllUsers,
     getUserById,
     createUser,
     updateUser,
-    updateUserStatus
+    updateUserStatus,
+    deleteUser  // ← Asegúrate de que esta importación esté presente
 } from '../controllers/userController';
 
 const router = Router();
@@ -15,8 +16,11 @@ router.get('/', getAllUsers);
 router.get('/:id', getUserById);
 router.post('/', createUser);
 
-// Nuevas rutas
-router.put('/:id', updateUser); // Actualizar un usuario completo
-router.patch('/:id/status', updateUserStatus); // Actualizar solo el estado activo/inactivo
+// Rutas de actualización
+router.put('/:id', updateUser);
+router.patch('/:id/status', updateUserStatus);
+
+// Ruta DELETE - ASEGÚRATE DE QUE ESTA LÍNEA ESTÉ PRESENTE
+router.delete('/:id', deleteUser);
 
 export default router;

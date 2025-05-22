@@ -23,7 +23,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateUser = exports.updateUserStatus = exports.createUser = exports.getUserById = exports.getAllUsers = void 0;
+exports.deleteUser = exports.updateUser = exports.updateUserStatus = exports.createUser = exports.getUserById = exports.getAllUsers = void 0;
 const db_1 = __importDefault(require("../config/db"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const saltRounds = 10;
@@ -71,8 +71,7 @@ exports.getUserById = getUserById;
 // Crear un nuevo usuario
 const createUser = (req, res, _next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { first_name, last_name, email, password, // Cambio: password en lugar de password_raw
-        role, unit_id, phone_number, number_of_family_members, is_active = true } = req.body;
+        const { first_name, last_name, email, password, role, unit_id, phone_number, number_of_family_members, is_active = true } = req.body;
         if (!first_name || !last_name || !email || !password || !role) {
             res.status(400).json({ message: 'Faltan campos requeridos (first_name, last_name, email, password, role).' });
             return;
@@ -90,7 +89,6 @@ const createUser = (req, res, _next) => __awaiter(void 0, void 0, void 0, functi
             number_of_family_members || 0, is_active
         ];
         const [result] = yield db_1.default.query(sql, params);
-        // Enviar respuesta de éxito
         res.status(201).json({
             id: result.insertId,
             first_name, last_name, email, role,
@@ -125,15 +123,12 @@ const updateUserStatus = (req, res, _next) => __awaiter(void 0, void 0, void 0, 
             res.status(400).json({ message: 'El campo is_active debe ser un valor booleano.' });
             return;
         }
-        // Verificar si el usuario existe
         const [userRows] = yield db_1.default.query('SELECT id FROM users WHERE id = ?', [numericId]);
         if (userRows.length === 0) {
             res.status(404).json({ message: 'Usuario no encontrado' });
             return;
         }
-        // Actualizar solo el estado del usuario
         yield db_1.default.query('UPDATE users SET is_active = ?, updated_at = NOW() WHERE id = ?', [is_active, numericId]);
-        // Obtener los datos actualizados del usuario
         const [rows] = yield db_1.default.query('SELECT id, first_name, last_name, email, role, unit_id, phone_number, number_of_family_members, is_active, created_at, updated_at FROM users WHERE id = ?', [numericId]);
         res.status(200).json(mapDbUserToUserResponse(rows[0]));
     }
@@ -143,7 +138,7 @@ const updateUserStatus = (req, res, _next) => __awaiter(void 0, void 0, void 0, 
     }
 });
 exports.updateUserStatus = updateUserStatus;
-// Actualizar un usuario existente (todos los campos excepto password_hash)
+// Actualizar un usuario existente
 const updateUser = (req, res, _next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
@@ -153,15 +148,12 @@ const updateUser = (req, res, _next) => __awaiter(void 0, void 0, void 0, functi
             res.status(400).json({ message: 'El ID del usuario debe ser un número.' });
             return;
         }
-        // Verificar si el usuario existe
         const [userRows] = yield db_1.default.query('SELECT id FROM users WHERE id = ?', [numericId]);
         if (userRows.length === 0) {
             res.status(404).json({ message: 'Usuario no encontrado' });
             return;
         }
-        // Preparar los campos y valores a actualizar
         let fieldsToUpdate = {};
-        // Añadir campos solo si están presentes en el cuerpo de la solicitud
         if (first_name !== undefined) {
             fieldsToUpdate.first_name = first_name;
         }
@@ -186,14 +178,11 @@ const updateUser = (req, res, _next) => __awaiter(void 0, void 0, void 0, functi
         if (is_active !== undefined) {
             fieldsToUpdate.is_active = is_active;
         }
-        // Manejar actualización de contraseña si se proporciona
         if (password) {
             const password_hash = yield bcryptjs_1.default.hash(password, saltRounds);
             fieldsToUpdate.password_hash = password_hash;
         }
-        // Añadir updated_at
         fieldsToUpdate.updated_at = new Date();
-        // Construir la consulta dinámicamente
         const entries = Object.entries(fieldsToUpdate);
         if (entries.length === 0) {
             res.status(400).json({ message: 'No se proporcionaron campos para actualizar.' });
@@ -203,15 +192,12 @@ const updateUser = (req, res, _next) => __awaiter(void 0, void 0, void 0, functi
         updateQuery += entries.map(([key]) => `${key} = ?`).join(', ');
         updateQuery += ' WHERE id = ?';
         const queryParams = [...entries.map(([_, value]) => value), numericId];
-        // Ejecutar la actualización
         yield db_1.default.query(updateQuery, queryParams);
-        // Obtener los datos actualizados del usuario
         const [rows] = yield db_1.default.query('SELECT id, first_name, last_name, email, role, unit_id, phone_number, number_of_family_members, is_active, created_at, updated_at FROM users WHERE id = ?', [numericId]);
         res.status(200).json(mapDbUserToUserResponse(rows[0]));
     }
     catch (error) {
         console.error('Error al actualizar usuario:', error);
-        // Manejo de error para email duplicado
         if (error.code === 'ER_DUP_ENTRY') {
             res.status(409).json({ message: 'Error: El email ya está registrado por otro usuario.', error: error.message });
             return;
@@ -220,3 +206,64 @@ const updateUser = (req, res, _next) => __awaiter(void 0, void 0, void 0, functi
     }
 });
 exports.updateUser = updateUser;
+// NUEVA FUNCIÓN: Eliminar un usuario existente
+const deleteUser = (req, res, _next) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const numericId = parseInt(id, 10);
+        console.log(`Attempting to delete user with ID: ${numericId}`);
+        if (isNaN(numericId)) {
+            res.status(400).json({ message: 'El ID del usuario debe ser un número.' });
+            return;
+        }
+        // Verificar si el usuario existe
+        const [userRows] = yield db_1.default.query('SELECT id, first_name, last_name, email FROM users WHERE id = ?', [numericId]);
+        if (userRows.length === 0) {
+            res.status(404).json({ message: 'Usuario no encontrado' });
+            return;
+        }
+        const userToDelete = userRows[0];
+        console.log(`User found for deletion:`, userToDelete);
+        // Verificar si el usuario tiene datos asociados
+        const [associatedPayments] = yield db_1.default.query('SELECT COUNT(*) as count FROM payments WHERE user_id = ?', [numericId]);
+        const [associatedMaintenance] = yield db_1.default.query('SELECT COUNT(*) as count FROM maintenance_requests WHERE user_id = ?', [numericId]);
+        console.log(`Associated data - Payments: ${associatedPayments[0].count}, Maintenance: ${associatedMaintenance[0].count}`);
+        // Eliminar datos asociados en cascada
+        if (associatedMaintenance[0].count > 0) {
+            yield db_1.default.query('DELETE FROM maintenance_requests WHERE user_id = ?', [numericId]);
+            console.log(`Deleted ${associatedMaintenance[0].count} maintenance requests`);
+        }
+        if (associatedPayments[0].count > 0) {
+            yield db_1.default.query('DELETE FROM payments WHERE user_id = ?', [numericId]);
+            console.log(`Deleted ${associatedPayments[0].count} payments`);
+        }
+        // Finalmente, eliminar el usuario
+        const [deleteResult] = yield db_1.default.query('DELETE FROM users WHERE id = ?', [numericId]);
+        if (deleteResult.affectedRows === 0) {
+            res.status(404).json({ message: 'No se pudo eliminar el usuario' });
+            return;
+        }
+        console.log(`User ${numericId} deleted successfully`);
+        res.status(200).json({
+            message: 'Usuario eliminado exitosamente',
+            deletedUserId: numericId,
+            deletedUser: {
+                id: userToDelete.id,
+                name: `${userToDelete.first_name} ${userToDelete.last_name}`,
+                email: userToDelete.email
+            },
+            deletedAssociatedData: {
+                payments: associatedPayments[0].count,
+                maintenanceRequests: associatedMaintenance[0].count
+            }
+        });
+    }
+    catch (error) {
+        console.error('Error al eliminar usuario:', error);
+        res.status(500).json({
+            message: 'Error interno del servidor',
+            error: error.message
+        });
+    }
+});
+exports.deleteUser = deleteUser;

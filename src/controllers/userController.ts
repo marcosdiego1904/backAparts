@@ -1,4 +1,4 @@
-// src/controllers/userController.ts
+// src/controllers/userController.ts - VERSIÓN COMPLETA
 import { Request, Response, NextFunction } from 'express';
 import pool from '../config/db';
 import { OkPacket, RowDataPacket } from 'mysql2/promise';
@@ -25,7 +25,7 @@ type CreateUserRequestBody = {
     first_name: string;
     last_name: string;
     email: string;
-    password: string; // Cambio de password_raw a password
+    password: string;
     role: 'manager' | 'tenant';
     unit_id?: number | null;
     phone_number?: string;
@@ -42,6 +42,10 @@ interface UpdateUserStatusParams {
 }
 
 interface UpdateUserParams {
+    id: string;
+}
+
+interface DeleteUserParams {
     id: string;
 }
 
@@ -100,7 +104,7 @@ export const createUser = async (req: Request, res: Response, _next: NextFunctio
             first_name,
             last_name,
             email,
-            password, // Cambio: password en lugar de password_raw
+            password,
             role,
             unit_id,
             phone_number,
@@ -129,7 +133,6 @@ export const createUser = async (req: Request, res: Response, _next: NextFunctio
 
         const [result] = await pool.query<OkPacket>(sql, params);
 
-        // Enviar respuesta de éxito
         res.status(201).json({
             id: result.insertId,
             first_name, last_name, email, role,
@@ -166,7 +169,6 @@ export const updateUserStatus = async (req: Request<UpdateUserStatusParams>, res
             return;
         }
 
-        // Verificar si el usuario existe
         const [userRows] = await pool.query<RowDataPacket[]>(
             'SELECT id FROM users WHERE id = ?', 
             [numericId]
@@ -177,13 +179,11 @@ export const updateUserStatus = async (req: Request<UpdateUserStatusParams>, res
             return;
         }
 
-        // Actualizar solo el estado del usuario
         await pool.query(
             'UPDATE users SET is_active = ?, updated_at = NOW() WHERE id = ?',
             [is_active, numericId]
         );
 
-        // Obtener los datos actualizados del usuario
         const [rows] = await pool.query<RowDataPacket[]>(
             'SELECT id, first_name, last_name, email, role, unit_id, phone_number, number_of_family_members, is_active, created_at, updated_at FROM users WHERE id = ?',
             [numericId]
@@ -196,7 +196,7 @@ export const updateUserStatus = async (req: Request<UpdateUserStatusParams>, res
     }
 };
 
-// Actualizar un usuario existente (todos los campos excepto password_hash)
+// Actualizar un usuario existente
 export const updateUser = async (req: Request<UpdateUserParams>, res: Response, _next: NextFunction): Promise<void> => {
     try {
         const { id } = req.params;
@@ -211,7 +211,6 @@ export const updateUser = async (req: Request<UpdateUserParams>, res: Response, 
             return;
         }
 
-        // Verificar si el usuario existe
         const [userRows] = await pool.query<RowDataPacket[]>(
             'SELECT id FROM users WHERE id = ?', 
             [numericId]
@@ -222,10 +221,8 @@ export const updateUser = async (req: Request<UpdateUserParams>, res: Response, 
             return;
         }
 
-        // Preparar los campos y valores a actualizar
         let fieldsToUpdate: {[key: string]: any} = {};
         
-        // Añadir campos solo si están presentes en el cuerpo de la solicitud
         if (first_name !== undefined) {
             fieldsToUpdate.first_name = first_name;
         }
@@ -251,16 +248,13 @@ export const updateUser = async (req: Request<UpdateUserParams>, res: Response, 
             fieldsToUpdate.is_active = is_active;
         }
 
-        // Manejar actualización de contraseña si se proporciona
         if (password) {
             const password_hash = await bcrypt.hash(password, saltRounds);
             fieldsToUpdate.password_hash = password_hash;
         }
 
-        // Añadir updated_at
         fieldsToUpdate.updated_at = new Date();
 
-        // Construir la consulta dinámicamente
         const entries = Object.entries(fieldsToUpdate);
         if (entries.length === 0) {
             res.status(400).json({ message: 'No se proporcionaron campos para actualizar.' });
@@ -272,10 +266,8 @@ export const updateUser = async (req: Request<UpdateUserParams>, res: Response, 
         updateQuery += ' WHERE id = ?';
         const queryParams = [...entries.map(([_, value]) => value), numericId];
 
-        // Ejecutar la actualización
         await pool.query(updateQuery, queryParams);
 
-        // Obtener los datos actualizados del usuario
         const [rows] = await pool.query<RowDataPacket[]>(
             'SELECT id, first_name, last_name, email, role, unit_id, phone_number, number_of_family_members, is_active, created_at, updated_at FROM users WHERE id = ?',
             [numericId]
@@ -285,12 +277,95 @@ export const updateUser = async (req: Request<UpdateUserParams>, res: Response, 
     } catch (error) {
         console.error('Error al actualizar usuario:', error);
         
-        // Manejo de error para email duplicado
         if ((error as any).code === 'ER_DUP_ENTRY') {
             res.status(409).json({ message: 'Error: El email ya está registrado por otro usuario.', error: (error as Error).message });
             return;
         }
         
         res.status(500).json({ message: 'Error interno del servidor', error: (error as Error).message });
+    }
+};
+
+// NUEVA FUNCIÓN: Eliminar un usuario existente
+export const deleteUser = async (req: Request<DeleteUserParams>, res: Response, _next: NextFunction): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const numericId = parseInt(id, 10);
+
+        console.log(`Attempting to delete user with ID: ${numericId}`);
+
+        if (isNaN(numericId)) {
+            res.status(400).json({ message: 'El ID del usuario debe ser un número.' });
+            return;
+        }
+
+        // Verificar si el usuario existe
+        const [userRows] = await pool.query<RowDataPacket[]>(
+            'SELECT id, first_name, last_name, email FROM users WHERE id = ?', 
+            [numericId]
+        );
+
+        if (userRows.length === 0) {
+            res.status(404).json({ message: 'Usuario no encontrado' });
+            return;
+        }
+
+        const userToDelete = userRows[0];
+        console.log(`User found for deletion:`, userToDelete);
+
+        // Verificar si el usuario tiene datos asociados
+        const [associatedPayments] = await pool.query<RowDataPacket[]>(
+            'SELECT COUNT(*) as count FROM payments WHERE user_id = ?', 
+            [numericId]
+        );
+
+        const [associatedMaintenance] = await pool.query<RowDataPacket[]>(
+            'SELECT COUNT(*) as count FROM maintenance_requests WHERE user_id = ?', 
+            [numericId]
+        );
+
+        console.log(`Associated data - Payments: ${associatedPayments[0].count}, Maintenance: ${associatedMaintenance[0].count}`);
+
+        // Eliminar datos asociados en cascada
+        if (associatedMaintenance[0].count > 0) {
+            await pool.query('DELETE FROM maintenance_requests WHERE user_id = ?', [numericId]);
+            console.log(`Deleted ${associatedMaintenance[0].count} maintenance requests`);
+        }
+        
+        if (associatedPayments[0].count > 0) {
+            await pool.query('DELETE FROM payments WHERE user_id = ?', [numericId]);
+            console.log(`Deleted ${associatedPayments[0].count} payments`);
+        }
+        
+        // Finalmente, eliminar el usuario
+        const [deleteResult] = await pool.query<OkPacket>('DELETE FROM users WHERE id = ?', [numericId]);
+        
+        if (deleteResult.affectedRows === 0) {
+            res.status(404).json({ message: 'No se pudo eliminar el usuario' });
+            return;
+        }
+
+        console.log(`User ${numericId} deleted successfully`);
+        
+        res.status(200).json({ 
+            message: 'Usuario eliminado exitosamente',
+            deletedUserId: numericId,
+            deletedUser: {
+                id: userToDelete.id,
+                name: `${userToDelete.first_name} ${userToDelete.last_name}`,
+                email: userToDelete.email
+            },
+            deletedAssociatedData: {
+                payments: associatedPayments[0].count,
+                maintenanceRequests: associatedMaintenance[0].count
+            }
+        });
+
+    } catch (error) {
+        console.error('Error al eliminar usuario:', error);
+        res.status(500).json({ 
+            message: 'Error interno del servidor', 
+            error: (error as Error).message 
+        });
     }
 };
