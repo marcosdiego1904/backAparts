@@ -4,8 +4,9 @@
   "scripts": {
     "start": "node dist/server.js",
     "build": "tsc",
-    "dev": "nodemon src/server.ts",
-    "db:seed": "ts-node ./scripts/seed.ts"
+    "dev": "nodemon",
+    "db:seed": "ts-node ./scripts/seed.ts",
+    "seed:dev": "nodemon --exec ts-node ./scripts/seed.ts"
   },
   "keywords": [],
   "author": "",

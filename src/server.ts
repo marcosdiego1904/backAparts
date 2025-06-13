@@ -1,12 +1,40 @@
 // src/server.ts
+import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
+
+// --- DEBUGGING: Verificar archivo .env ---
+const envPath = path.resolve(process.cwd(), '.env');
+console.log("=== DEBUGGING .env ===");
+console.log("Buscando archivo .env en:", envPath);
+console.log("¿Existe el archivo?", fs.existsSync(envPath));
+if (fs.existsSync(envPath)) {
+    console.log("Contenido del archivo .env:");
+    console.log(fs.readFileSync(envPath, 'utf8'));
+} else {
+    console.log("ARCHIVO .env NO ENCONTRADO!");
+}
+console.log("=== FIN DEBUGGING .env ===");
+// --- FIN DEBUGGING ---
+
+dotenv.config({ path: envPath }); // Usar ruta explícita
+
+// --- DEBUGGING: Verificar variables de entorno ---
+console.log("=== DEBUGGING SERVER ===");
+console.log("Directorio de trabajo:", process.cwd());
+console.log("DB_HOST:", process.env.DB_HOST);
+console.log("DB_USER:", process.env.DB_USER);
+console.log("DB_PASSWORD:", process.env.DB_PASSWORD ? "Cargada (oculta)" : "NO cargada");
+console.log("DB_NAME:", process.env.DB_NAME);
+console.log("PORT:", process.env.PORT);
+console.log("=== FIN DEBUGGING ===");
+// --- FIN DEBUGGING ---
+
 import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import pool from '../src/config/db';
 import unitRoutes from './routes/unitRoutes';
-import userRoutes from './routes/userRoutes'; // NUEVA LÍNEA: Importar las rutas de usuarios
-
-dotenv.config();
+import userRoutes from './routes/userRoutes';
 
 const app: Application = express();
 const port = process.env.PORT || 3001;
@@ -39,8 +67,8 @@ app.get('/test-db', async (_req: Request, res: Response) => {
 });
 
 // Rutas de la API
-app.use('/api/units', unitRoutes); // Rutas para las unidades
-app.use('/api/users', userRoutes); // NUEVA LÍNEA: Rutas para los usuarios
+app.use('/api/units', unitRoutes);
+app.use('/api/users', userRoutes);
 
 // Ruta de bienvenida
 app.get('/', (_req: Request, res: Response) => {

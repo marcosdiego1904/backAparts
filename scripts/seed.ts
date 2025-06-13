@@ -1,7 +1,10 @@
 // scripts/seed.ts
-import pool from '../src/config/db'; // Ensure this path is correct from your project root
+import dotenv from 'dotenv';
+dotenv.config({ path: './.env' }); // Cargar variables de entorno PRIMERO
+
+import pool from '../src/config/db';
 import bcrypt from 'bcryptjs';
-import { PoolConnection, OkPacket } from 'mysql2/promise'; // Import OkPacket for insert results
+import { PoolConnection, OkPacket } from 'mysql2/promise';
 
 // --- 1. Interface Definitions ---
 interface DemoUnit {
